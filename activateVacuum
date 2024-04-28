@@ -1,0 +1,5 @@
+function activateVacuum()
+
+client = rossvcclient('/ur5/epick1/on');
+call(client,'Timeout',3);
+end
