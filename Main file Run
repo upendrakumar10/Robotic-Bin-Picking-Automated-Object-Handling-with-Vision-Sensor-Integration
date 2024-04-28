@@ -1,0 +1,86 @@
+rbt = importrobot('universalUR5e.urdf','DataFormat','row');
+ur5e = exampleHelperAddGripper(rbt);
+
+ROSDeviceAddress = '192.168.132.128'; % IP address
+username = 'user'; % User name
+password = 'password'; % Password corresponds to user name
+
+ROSFolder = '/opt/ros/noetic'; % ROS installation folder
+WorkSpaceFolder = '~/ur_ws'; % UR ROS driver installation workspace folder location
+
+device = rosdevice(ROSDeviceAddress,username,password);
+device.ROSFolder = ROSFolder;
+
+generateAndTransferLaunchScriptForUR5eSimGazebo(device,WorkSpaceFolder);
+
+if ~isCoreRunning(device)
+    w = strsplit(system(device,'who'));
+    displayNum = cell2mat(w(2));
+
+    system(device,['export SVGA_VGPU10=0; ' ...
+        'export DISPLAY=' displayNum '.0; ' ...
+        './launchURBinPicking.sh &']);
+    pause(10);
+end
+gzinit(ROSDeviceAddress,14581);
+rosshutdown;
+
+rosinit(ROSDeviceAddress);
+
+pause(20);
+% Create an instance to communicate with the simulated UR5e cobot
+ur = universalrobot(ROSDeviceAddress,'RigidBodyTree',ur5e);
+
+% Send To home position
+sendJointConfigurationAndWait(ur,homePosition,'EndTime',2);
+pause(2);
+
+% call ROS service for pause the Gazebo world
+physicsClientPause = rossvcclient('gazebo/pause_physics');
+call(physicsClientPause,'Timeout',3);
+
+% Set states for table, bin and stand
+gzmodel('set','bin_picking_stand','Position',[0 0 0.001],'Orientation',eul2quat([0,0,0]))
+
+pause(0.5);
+gzmodel('set','pvc_tray','Position',[0.48 0 0.55],'Orientation',eul2quat([1.57 0 0]),"SelfCollide","off","IsStatic","on")
+
+pause(0.5);
+gzlink('set','table_solid','link','Position',[0.17 0.68 0.4],'Orientation',eul2quat([0,0,0]));
+
+% call ROS service for un-pause the Gazebo world
+physicsClientUnpause = rossvcclient('gazebo/unpause_physics');
+call(physicsClientUnpause,'Timeout',3);
+
+% create mesh
+px1 = -0.20:0.12:0.24;
+py1 = -0.12:0.11:0.12;
+
+py1 = py1(randperm(length(py1)))+0.48;
+px1 = px1(randperm(length(px1)));
+
+temp = cell(length(px1),length(py1));
+
+for i = 1:length(px1)
+    for j = 1:length(py1)
+        temp(i,j) = {[px1(i), py1(j)]};
+    end
+end
+
+newPose = reshape(temp,[1,length(px1)*length(py1)]);
+
+% get the list of the world models
+modelList = gzmodel("list");
+
+% list of the target objects (naming starts with part1, part2 etc.)
+partList = modelList(contains(modelList,"part"));
+
+
+ii=randperm(length(newPose));
+b=newPose(ii);
+
+% spawn the world
+for i=1:length(partList)
+    partGT = cell2mat(b(i));
+    gzlink('set',partList(i),'link','Position',[partGT(2) partGT(1) 0.7],'Orientation',eul2quat([rand*pi*0.8,0,0]));
+end
