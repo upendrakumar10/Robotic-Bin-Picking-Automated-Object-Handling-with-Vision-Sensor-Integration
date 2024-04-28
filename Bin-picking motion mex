@@ -1,0 +1,34 @@
+Setup Planner Parameters for Reference Input for Code Generation
+Loading dummy parameters to set as input for code generation command. As mentioned in the previous section, this function requires partID,partGT,startConfig,endConfig and pathType as input arguments.
+%% create PartGT array
+load("GroundTruth.mat");
+PartGTLoaded = partGT;
+numberOfParts = size(PartGTLoaded,1);
+partGT = zeros(numberOfParts,4);
+
+for i=1:numberOfParts
+    partGT(i,1:2) = PartGTLoaded(i,1:2);
+    partGT(i,3) = 0.01;
+    partGT(i,4) = PartGTLoaded(i,3);
+end
+
+%% Specify part index to approach or place
+partID = 2;
+
+%% Specify start and end configurations as 1x6 array
+startConfig = [-15 -126 113 -80 -91 76]*pi/180;
+endConfig = [-0.1922 -1.4101 1.8234 -1.9841 -1.5708 1.3786];
+
+%% Specify the path type for which the trajectory needs to generate
+pathType = 'approach';
+
+Generate Code for Planning
+To generate a MEX function, exampleHelperBinPickingRRTMotionPlannerSim_mex, from the MATLAB function exampleHelperBinPickingRRTMotionPlannerSim.m , run this command:
+codegen("exampleHelperBinPickingRRTMotionPlannerSim", ...
+    "-args",{partID,coder.typeof(partGT,[inf 4],[1 0]),startConfig,endConfig,coder.typeof(pathType,[1 inf],[0 1])})
+% Output from MATLAB function
+[planPath, shortPath, interpolatePath] = exampleHelperBinPickingRRTMotionPlannerSim(partID,partGT,startConfig,endConfig,pathType);
+
+Run this command to use the generated MEX function for the computation of the paths for specified inputs,
+% Output from MEX function
+[planPath, shortPath, interpolatePath] = exampleHelperBinPickingRRTMotionPlannerSim_mex(partID,partGT,startConfig,endConfig,pathType);
